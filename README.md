@@ -283,6 +283,6 @@ Distributed under the **MIT License**. See [`LICENSE`](./LICENSE) for more infor
 
 **⭐ Star repo ini kalau membantu!**
 
-Made with ❤️ by [dullstudnt](https://github.com/dullstudnt)
+Made with ❤️ by [musabb](https://github.com/rsvmusabb)
 
 </div>
