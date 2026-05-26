@@ -17,6 +17,30 @@ const yts = require('yt-search');
 const youtubedl = require('youtube-dl-exec');
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 
+// Error logging
+const errorLog = fs.createWriteStream('error.log', {flags: 'a'});
+function logError(msg, err) {
+    const ts = new Date().toISOString();
+    errorLog.write(`[${ts}] ${msg}: ${err?.message || err}\n${err?.stack || ''}\n`);
+    console.error(`[ERROR] ${msg}: ${err?.message || err}`);
+}
+
+// Process-level handlers
+process.on('unhandledRejection', (err) => logError('Unhandled Rejection', err));
+process.on('uncaughtException', (err) => {
+    logError('Uncaught Exception', err);
+    setTimeout(() => process.exit(1), 1000);
+});
+
+// Exponential backoff state
+let reconnectAttempts = 0;
+const MAX_RECONNECT_DELAY = 30000;
+
+// Anti-spam rate limiter
+const rateLimiter = {};
+const RATE_LIMIT_WINDOW = 10000;
+const RATE_LIMIT_MAX = 5;
+
 // Config
 const { BOT_CONFIG, MENU_ALIAS, MENU_COMMANDS, FRAME, GACHA_PRICES, DUEL_BET, DUEL_TIMEOUT, DAILY_COOLDOWN, RPG_FOODS, MAX_STAMINA, STAMINA_COSTS, STAMINA_REGEN_PER_HOUR, MAX_DURABILITY, DURABILITY_LOSS_PER_BATTLE, REPAIR_COST_PER_POINT, RPG_WEAPONS, RPG_ARMORS, RPG_SHIELDS, RPG_ITEMS, RPG_CLASSES, RPG_ACHIEVEMENTS, RPG_QUESTS, QUEST_COOLDOWN, RPG_EVOLUTIONS, RPG_SKILL_TREES, BASE_UPGRADES, ENCHANT_RATES, ENCHANT_ATK_BONUS, ARENA_RANKS, WORLD_BOSS_POOL, WORLD_BOSS_DURATION, DARK_MONSTERS, DARK_WORLD_DURATION, CURSES, VOID_EVENTS, STORY_CHAPTERS, STORY_TITLES, DEMON_INVASION_PHASES, WEAPON_AWAKENINGS, RPG_SUMMONS, NPC_ENCOUNTERS, RANDOM_EVENTS, KARMA_LEVELS, COOLDOWNS, MARKET_FEE } = require('./config');
 const { MENU_CATEGORIES } = require('./modules/utility/menu-categories');
@@ -67,6 +91,53 @@ const { scrapePinterest, downloadImage, sendImageSearchResults } = require('./mo
 // Question helper
 const question = (text) => { const rl = readline.createInterface({ input: process.stdin, output: process.stdout }); return new Promise((resolve) => rl.question(text, (a) => { rl.close(); resolve(a); })); };
 
+function unwrapMessageContent(message) {
+    let content = message || {};
+    for (let i = 0; i < 5; i++) {
+        if (content.ephemeralMessage?.message) { content = content.ephemeralMessage.message; continue; }
+        if (content.viewOnceMessage?.message) { content = content.viewOnceMessage.message; continue; }
+        if (content.viewOnceMessageV2?.message) { content = content.viewOnceMessageV2.message; continue; }
+        if (content.documentWithCaptionMessage?.message) { content = content.documentWithCaptionMessage.message; continue; }
+        break;
+    }
+    return content;
+}
+
+function getInteractiveCommand(content) {
+    const rawParams = content.interactiveResponseMessage?.nativeFlowResponseMessage?.paramsJson;
+    if (!rawParams) return '';
+    try {
+        const params = JSON.parse(rawParams);
+        return params.id || params.selectedId || '';
+    } catch (error) {
+        return '';
+    }
+}
+
+function extractMessageText(message) {
+    const content = unwrapMessageContent(message);
+    return content.conversation
+        || content.extendedTextMessage?.text
+        || content.imageMessage?.caption
+        || content.videoMessage?.caption
+        || content.documentMessage?.caption
+        || content.buttonsResponseMessage?.selectedButtonId
+        || content.listResponseMessage?.singleSelectReply?.selectedRowId
+        || content.templateButtonReplyMessage?.selectedId
+        || getInteractiveCommand(content)
+        || '';
+}
+
+function getMessageType(message) {
+    const content = unwrapMessageContent(message);
+    return Object.keys(content || {})[0] || 'unknown';
+}
+
+function getMessageSourceLabel(msg, participant) {
+    if (msg.key.fromMe) return `${participant} (fromMe/self-chat)`;
+    return participant;
+}
+
 // ============================================================
 // CONNECT TO WHATSAPP
 // ============================================================
@@ -90,30 +161,124 @@ async function connectToWhatsApp() {
         if (connection === 'close') {
             const shouldReconnect = lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
             console.log('Koneksi terputus. Reconnect:', shouldReconnect);
-            if (shouldReconnect) connectToWhatsApp();
-        } else if (connection === 'open') { console.log('✅ Bot berhasil terhubung!'); }
+            if (shouldReconnect) {
+                reconnectAttempts++;
+                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), MAX_RECONNECT_DELAY);
+                console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`);
+                setTimeout(() => {
+                    reconnectAttempts = 0;
+                    connectToWhatsApp();
+                }, delay);
+            }
+        } else if (connection === 'open') {
+            reconnectAttempts = 0;
+            console.log('Bot berhasil terhubung!');
+            console.log('Bot siap menerima command. Tes dari nomor lain atau grup; self-chat nomor bot tidak reliable.');
+        }
     });
 
     sock.ev.on('creds.update', saveCreds);
 
     // ============================================================
+    // GROUP PARTICIPANTS UPDATE — Welcome Message
+    // ============================================================
+    sock.ev.on('group-participants.update', async ({ id, participants, action }) => {
+        try {
+            if (action === 'add') {
+                const groupMetadata = await sock.groupMetadata(id);
+                for (const participant of participants) {
+                    const welcomeText = `👋 Selamat datang @${participant.split('@')[0]} di *${groupMetadata.subject}*!\n\n📜 ketik *.menu* untuk melihat command\n🎮 ketik *.daftar* untuk bermain RPG\n\nSemoga betah ya~ 🎉`;
+                    await sock.sendMessage(id, { text: welcomeText, mentions: [participant] });
+                }
+            } else if (action === 'remove') {
+                for (const participant of participants) {
+                    await sock.sendMessage(id, { text: `👋 Selamat jalan @${participant.split('@')[0]}, semoga tenang disana~`, mentions: [participant] });
+                }
+            } else if (action === 'promote') {
+                for (const participant of participants) {
+                    await sock.sendMessage(id, { text: `🎉 Selamat @${participant.split('@')[0]} sekarang jadi admin grup!`, mentions: [participant] });
+                }
+            } else if (action === 'demote') {
+                for (const participant of participants) {
+                    await sock.sendMessage(id, { text: `😅 @${participant.split('@')[0]} di-demote dari admin.`, mentions: [participant] });
+                }
+            }
+        } catch (e) {
+            logError('group-participants.update', e);
+        }
+    });
+
+    // ============================================================
     // MESSAGE HANDLER — Command Router
     // ============================================================
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
+        try {
         if (type !== 'notify') return;
         const msg = messages[0];
-        if (!msg.message || msg.key.fromMe) return;
+        if (!msg.message) {
+            if (BOT_CONFIG.DEBUG_INCOMING_MESSAGES) console.log('[MSG DEBUG] Pesan tanpa content diterima.');
+            return;
+        }
 
         const sender = msg.key.remoteJid;
         const participant = msg.key.participant || msg.key.remoteJid;
-        const messageContent = msg.message.conversation || msg.message.extendedTextMessage?.text || '';
-        if (!messageContent.startsWith('.')) return;
+
+        // Anti-spam rate limiting
+        const now = Date.now();
+        if (!rateLimiter[participant]) rateLimiter[participant] = [];
+        rateLimiter[participant] = rateLimiter[participant].filter(t => now - t < RATE_LIMIT_WINDOW);
+        if (rateLimiter[participant].length >= RATE_LIMIT_MAX) {
+            console.log(`[RATE LIMIT] ${participant} blocked`);
+            return;
+        }
+        rateLimiter[participant].push(now);
+
+        const sourceLabel = getMessageSourceLabel(msg, participant);
+        const messageContent = extractMessageText(msg.message).trim();
+        if (msg.key.fromMe && !BOT_CONFIG.PROCESS_OWN_COMMANDS) {
+            if (messageContent.startsWith('.')) console.log(`[SELF COMMAND IGNORED] ${messageContent} dari ${sourceLabel}. Tes dari nomor lain atau grup.`);
+            return;
+        }
+        if (!messageContent.startsWith('.')) {
+            if (BOT_CONFIG.DEBUG_INCOMING_MESSAGES) console.log(`[MSG DEBUG] Non-command ${getMessageType(msg.message)} dari ${sourceLabel}`);
+            return;
+        }
 
         const args = messageContent.substring(1).split(' ');
         const command = args.shift().toLowerCase();
         const textMessage = args.join(' ');
+        console.log(`[CMD] ${command}${textMessage ? ' ' + textMessage : ''} dari ${sourceLabel}`);
 
         if (isBanned(participant) && !isOwner(participant)) return;
+
+        // ============================================================
+        // SECURITY: Auto-welcome for group join events
+        // ============================================================
+        if (sender.endsWith('@g.us') && !command && messageContent) {
+            // Welcome message disabled for non-command messages to reduce spam
+        }
+
+        // ============================================================
+        // SECURITY: Anti-link spam (group only, skip owner/admin)
+        // ============================================================
+        if (sender.endsWith('@g.us') && !isOwner(participant) && !isBotAdmin(participant)) {
+            const linkPattern = /(https?:\/\/|www\.)\S+/gi;
+            if (linkPattern.test(messageContent) && !command) {
+                // Check if sender is bot admin (trusted)
+                try {
+                    const groupMetadata = await sock.groupMetadata(sender);
+                    const groupAdmins = groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin').map(p => p.id);
+                    if (!groupAdmins.includes(participant)) {
+                        // Non-admin posting link → delete + warn
+                        await sock.sendMessage(sender, { delete: msg.key });
+                        await sock.sendMessage(sender, { text: `⚠️ @${participant.split('@')[0]} dilarang share link tanpa izin admin!`, mentions: [participant] });
+                        return;
+                    }
+                } catch (e) {
+                    // Silently fail if can't get group info
+                }
+            }
+        }
 
         try {
             switch (command) {
@@ -347,7 +512,10 @@ async function connectToWhatsApp() {
                     break;
             }
         } catch (error) {
-            console.error(`[CMD ERROR] ${command}:`, error.message);
+            logError(`[CMD ERROR] ${command}`, error);
+        }
+        } catch (error) {
+            logError('messages.upsert', error);
         }
     });
 }

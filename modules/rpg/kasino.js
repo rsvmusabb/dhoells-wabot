@@ -139,7 +139,7 @@ async function handleCoinflip(sock, sender, msg, participant, textMessage) {
 
     if (!args[0] || args[0] === 'menu') {
         await sock.sendMessage(sender, {
-            text: `╭━━━〔 *🪙 COIN FLIP* 〕━━━\n┃\n┃ 🪙 *.coinflip <ganjil/genap> <jumlah>*\n┃   Contoh: *.coinflip ganjil 200*\n┃\n┃ 💰 Menang = 2x bet\n┃ 💀 Kalah = hilang semua bet\n┃\n┃ 🪙 Saldo: *${formatCoins(player.coins)}*\n╰━━━━━━━━━━━━━━━━━━━`
+            text: `╭━━━〔 *🪙 COIN FLIP* 〕━━━\n┃\n┃ 🪙 *.coinflip <ganjil/genap> <jumlah>*\n┃   Contoh: *.coinflip ganjil 200*\n┃\n┃ 💰 Menang = 1.95x bet (house edge 2.5%)\n┃ 💀 Kalah = hilang semua bet\n┃\n┃ 🪙 Saldo: *${formatCoins(player.coins)}*\n╰━━━━━━━━━━━━━━━━━━━`
         }, { quoted: msg });
         return;
     }
@@ -178,7 +178,7 @@ async function handleCoinflip(sock, sender, msg, participant, textMessage) {
     }
 
     player.coins -= bet;
-    if (won) player.coins += bet * 2;
+    if (won) player.coins += Math.floor(bet * 1.95);
 
     // Update stats
     if (!player.kasinoStats) player.kasinoStats = { cfWins: 0, cfLosses: 0, cfTotal: 0, totalWagered: 0, totalWon: 0 };
@@ -207,7 +207,7 @@ async function handleDice(sock, sender, msg, participant, textMessage) {
 
     if (!args[0] || args[0] === 'menu') {
         await sock.sendMessage(sender, {
-            text: `╭━━━〔 *🎲 DICE ROLL* 〕━━━\n┃\n┃ 🎲 *.dice <angka 1-6> <jumlah>*\n┃   Contoh: *.dice 6 300*\n┃\n┃ 💰 Menang = 6x bet (nebak 1 angka)\n┃ 💀 Kalah = hilang semua bet\n┃\n┃ 🪙 Saldo: *${formatCoins(player.coins)}*\n╰━━━━━━━━━━━━━━━━━━━`
+            text: `╭━━━〔 *🎲 DICE ROLL* 〕━━━\n┃\n┃ 🎲 *.dice <angka 1-6> <jumlah>*\n┃   Contoh: *.dice 6 300*\n┃\n┃ 💰 Menang = 5x bet (house edge 16.7%)\n┃ 💀 Kalah = hilang semua bet\n┃\n┃ 🪙 Saldo: *${formatCoins(player.coins)}*\n╰━━━━━━━━━━━━━━━━━━━`
         }, { quoted: msg });
         return;
     }
@@ -246,13 +246,13 @@ async function handleDice(sock, sender, msg, participant, textMessage) {
     }
 
     player.coins -= bet;
-    if (won) player.coins += bet * 6;
+    if (won) player.coins += bet * 5;
 
     // Update stats
     if (!player.kasinoStats) player.kasinoStats = { diceWins: 0, diceLosses: 0, diceTotal: 0, totalWagered: 0, totalWon: 0 };
     player.kasinoStats.diceTotal++;
     player.kasinoStats.totalWagered += bet;
-    if (won) { player.kasinoStats.diceWins++; player.kasinoStats.totalWon += bet * 6; }
+    if (won) { player.kasinoStats.diceWins++; player.kasinoStats.totalWon += bet * 5; }
     else player.kasinoStats.diceLosses++;
 
     updatePlayer(participant, player);
@@ -275,7 +275,7 @@ async function handleTebak(sock, sender, msg, participant, textMessage) {
 
     if (!args[0] || args[0] === 'menu') {
         await sock.sendMessage(sender, {
-            text: `╭━━━〔 *🔢 TEBAK ANGKA* 〕━━━\n┃\n┃ 🔢 *.tebak <angka 1-10> <jumlah>*\n┃   Contoh: *.tebak 7 500*\n┃\n┃ 💰 Menang = 10x bet\n┃ 💀 Kalah = hilang semua bet\n┃\n┃ 🪙 Saldo: *${formatCoins(player.coins)}*\n╰━━━━━━━━━━━━━━━━━━━`
+            text: `╭━━━〔 *🔢 TEBAK ANGKA* 〕━━━\n┃\n┃ 🔢 *.tebak <angka 1-10> <jumlah>*\n┃   Contoh: *.tebak 7 500*\n┃\n┃ 💰 Menang = 9x bet (house edge 10%)\n┃ 💀 Kalah = hilang semua bet\n┃\n┃ 🪙 Saldo: *${formatCoins(player.coins)}*\n╰━━━━━━━━━━━━━━━━━━━`
         }, { quoted: msg });
         return;
     }
@@ -314,13 +314,13 @@ async function handleTebak(sock, sender, msg, participant, textMessage) {
     }
 
     player.coins -= bet;
-    if (won) player.coins += bet * 10;
+    if (won) player.coins += bet * 9;
 
     // Update stats
     if (!player.kasinoStats) player.kasinoStats = { tebakWins: 0, tebakLosses: 0, tebakTotal: 0, totalWagered: 0, totalWon: 0 };
     player.kasinoStats.tebakTotal++;
     player.kasinoStats.totalWagered += bet;
-    if (won) { player.kasinoStats.tebakWins++; player.kasinoStats.totalWon += bet * 10; }
+    if (won) { player.kasinoStats.tebakWins++; player.kasinoStats.totalWon += bet * 9; }
     else player.kasinoStats.tebakLosses++;
 
     updatePlayer(participant, player);

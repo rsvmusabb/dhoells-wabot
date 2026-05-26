@@ -1,14 +1,36 @@
 // ============================================================
-// modules/utility/db.js — Database & Player Management
+// modules/utility/db.js — Database & Player Management (JSON)
+// Clean rewrite: no native dependencies, write queue protected
 // ============================================================
 
 const fs = require('fs');
 const path = require('path');
-const { BOT_CONFIG, DEFAULT_COINS, LEGACY_OLD_CURRENCY_KEY, LEGACY_OLD_BALANCE_KEY } = require('../../config');
+const { BOT_CONFIG, DEFAULT_COINS, LEGACY_OLD_CURRENCY_KEY, LEGACY_OLD_BALANCE_KEY, COOLDOWNS } = require('../../config');
 
 // Ensure temp dir exists
 if (!fs.existsSync(BOT_CONFIG.TEMP_DIR)) {
     fs.mkdirSync(BOT_CONFIG.TEMP_DIR, { recursive: true });
+}
+
+// ============================================================
+// WRITE QUEUE — prevents race conditions on JSON files
+// ============================================================
+const writeQueues = {};
+function queueWrite(filePath, data) {
+    writeQueues[filePath] = data;
+    if (!writeQueues._timer) {
+        writeQueues._timer = setTimeout(() => {
+            for (const [fp, d] of Object.entries(writeQueues)) {
+                if (fp === '_timer') continue;
+                try {
+                    fs.writeFileSync(fp, JSON.stringify(d, null, 2));
+                } catch (e) {
+                    console.error('[DB ERROR] write:', e.message);
+                }
+            }
+            writeQueues._timer = null;
+        }, 100);
+    }
 }
 
 // ============================================================
@@ -19,12 +41,14 @@ function loadPlayerData() {
         if (fs.existsSync(BOT_CONFIG.PLAYER_DATA_FILE)) {
             return JSON.parse(fs.readFileSync(BOT_CONFIG.PLAYER_DATA_FILE, 'utf-8'));
         }
-    } catch (e) {}
+    } catch (e) {
+        console.error('[DB ERROR] loadPlayerData:', e.message);
+    }
     return {};
 }
 
 function savePlayerData(data) {
-    fs.writeFileSync(BOT_CONFIG.PLAYER_DATA_FILE, JSON.stringify(data, null, 2));
+    queueWrite(BOT_CONFIG.PLAYER_DATA_FILE, data);
 }
 
 function getPlayer(playerId) {
@@ -58,12 +82,10 @@ function getDisplayName(playerId) {
 // ============================================================
 function normalizePlayerCurrency(player) {
     if (!player) return player;
-    // Migrate old 'token' -> 'coins'
     if (player[LEGACY_OLD_CURRENCY_KEY] !== undefined && player.coins === undefined) {
         player.coins = player[LEGACY_OLD_CURRENCY_KEY];
         delete player[LEGACY_OLD_CURRENCY_KEY];
     }
-    // Migrate old 'money' -> 'coins'
     if (player[LEGACY_OLD_BALANCE_KEY] !== undefined && player.coins === undefined) {
         player.coins = player[LEGACY_OLD_BALANCE_KEY];
         delete player[LEGACY_OLD_BALANCE_KEY];
@@ -86,7 +108,7 @@ function loadBannedUsers() {
 }
 
 function saveBannedUsers(list) {
-    fs.writeFileSync(BOT_CONFIG.BANNED_FILE, JSON.stringify(list, null, 2));
+    try { fs.writeFileSync(BOT_CONFIG.BANNED_FILE, JSON.stringify(list, null, 2)); } catch (e) {}
 }
 
 function isBanned(jid) {
@@ -103,8 +125,7 @@ function banUser(jid) {
 
 function unbanUser(jid) {
     const key = (jid || '').split('@')[0];
-    const list = loadBannedUsers().filter(b => b.split('@')[0] !== key);
-    saveBannedUsers(list);
+    saveBannedUsers(loadBannedUsers().filter(b => b.split('@')[0] !== key));
 }
 
 // ============================================================
@@ -120,21 +141,23 @@ function loadAdmins() {
 }
 
 function saveAdmins(list) {
-    fs.writeFileSync(BOT_CONFIG.ADMIN_USERS_FILE, JSON.stringify(list, null, 2));
+    try { fs.writeFileSync(BOT_CONFIG.ADMIN_USERS_FILE, JSON.stringify(list, null, 2)); } catch (e) {}
 }
 
 function isBotAdmin(jid) {
-    const admins = loadAdmins();
-    return admins.some(a => a === jid) || (BOT_CONFIG.ADMIN_NUMBERS || []).map(normalizeJid).includes(jid);
+    return loadAdmins().some(a => a === jid) || (BOT_CONFIG.ADMIN_NUMBERS || []).map(normalizeJid).includes(jid);
 }
 
+// ============================================================
+// OWNER CHECK — ABSOLUT, NO EXCEPTIONS
+// ============================================================
 function isOwner(jid) {
     if (!jid) return false;
     const clean = jid.split(':')[0].split('@')[0];
-    const ownerClean = BOT_CONFIG.OWNER_NUMBER.split('@')[0].replace('62', '');
     const ownerFull = BOT_CONFIG.OWNER_NUMBER;
     const ownerLid = BOT_CONFIG.OWNER_LID || '';
-    return jid === ownerFull || jid === ownerLid || clean === ownerFull.split('@')[0] || clean === '62' + ownerClean;
+    const ownerClean = ownerFull.split('@')[0];
+    return jid === ownerFull || jid === ownerLid || clean === ownerClean;
 }
 
 function isPrivileged(jid) {
@@ -151,13 +174,8 @@ function normalizeJid(jid) {
     return jid;
 }
 
-function jidKey(jid) {
-    return jid.split('@')[0];
-}
-
-function sameJid(a, b) {
-    return normalizeJid(a) === normalizeJid(b);
-}
+function jidKey(jid) { return jid.split('@')[0]; }
+function sameJid(a, b) { return normalizeJid(a) === normalizeJid(b); }
 
 // ============================================================
 // GUILD DATA
@@ -172,7 +190,7 @@ function loadGuildData() {
 }
 
 function saveGuildData(data) {
-    fs.writeFileSync(BOT_CONFIG.GUILD_DATA_FILE, JSON.stringify(data, null, 2));
+    try { fs.writeFileSync(BOT_CONFIG.GUILD_DATA_FILE, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
 function getGuild(name) {
@@ -213,7 +231,7 @@ function loadMarketData() {
 }
 
 function saveMarketData(data) {
-    fs.writeFileSync(BOT_CONFIG.MARKET_DATA_FILE, JSON.stringify(data, null, 2));
+    try { fs.writeFileSync(BOT_CONFIG.MARKET_DATA_FILE, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
 // ============================================================
@@ -229,11 +247,11 @@ function loadBountyData() {
 }
 
 function saveBountyData(data) {
-    fs.writeFileSync(BOT_CONFIG.BOUNTY_DATA_FILE, JSON.stringify(data, null, 2));
+    try { fs.writeFileSync(BOT_CONFIG.BOUNTY_DATA_FILE, JSON.stringify(data, null, 2)); } catch (e) {}
 }
 
 // ============================================================
-// CUSTOM ITEMS (OWNER GENERATED)
+// CUSTOM ITEMS
 // ============================================================
 const CUSTOM_ITEMS_FILE = './database/custom_items.json';
 
@@ -248,19 +266,23 @@ function loadCustomItems() {
             return data;
         }
     } catch (e) {
-        console.error("Error loading custom items:", e);
+        console.error('[DB ERROR] loadCustomItems:', e.message);
     }
     return { weapons: {}, armors: {}, items: {} };
 }
 
 function saveCustomItems(data) {
-    if (!fs.existsSync('./database')) fs.mkdirSync('./database');
-    fs.writeFileSync(CUSTOM_ITEMS_FILE, JSON.stringify(data, null, 2));
-    loadCustomItems(); // Reload into memory
+    try {
+        if (!fs.existsSync('./database')) fs.mkdirSync('./database');
+        fs.writeFileSync(CUSTOM_ITEMS_FILE, JSON.stringify(data, null, 2));
+        loadCustomItems();
+    } catch (e) {
+        console.error('[DB ERROR] saveCustomItems:', e.message);
+    }
 }
 
 // ============================================================
-// COOLDOWN SYSTEM
+// COOLDOWN SYSTEM (in-memory)
 // ============================================================
 const playerCooldowns = {};
 
@@ -280,12 +302,7 @@ function formatCooldown(ms) {
 }
 
 // ============================================================
-// COOLDOWNS IMPORT
-// ============================================================
-const { COOLDOWNS } = require('../../config');
-
-// ============================================================
-// RAID SESSIONS
+// ACTIVE SESSIONS (in-memory, persisted via JSON files)
 // ============================================================
 const activeDuels = {};
 const activeRaids = {};
@@ -293,18 +310,55 @@ const activeGambles = {};
 let activeWorldBoss = null;
 let activeDemonInvasion = null;
 
+function saveSession(key, data) {
+    try {
+        fs.writeFileSync(`./sessions_${key}.json`, JSON.stringify(data, null, 2));
+    } catch (e) {}
+}
+
+function loadSession(key) {
+    try {
+        const file = `./sessions_${key}.json`;
+        if (fs.existsSync(file)) return JSON.parse(fs.readFileSync(file, 'utf-8'));
+    } catch (e) {}
+    return null;
+}
+
+// Auto-save sessions every 30 seconds
+setInterval(() => {
+    saveSession('activeDuels', activeDuels);
+    saveSession('activeRaids', activeRaids);
+    saveSession('activeGambles', activeGambles);
+    if (activeWorldBoss) saveSession('activeWorldBoss', activeWorldBoss);
+    if (activeDemonInvasion) saveSession('activeDemonInvasion', activeDemonInvasion);
+}, 30000);
+
+// Restore sessions on startup
+Object.assign(activeDuels, loadSession('activeDuels') || {});
+Object.assign(activeRaids, loadSession('activeRaids') || {});
+Object.assign(activeGambles, loadSession('activeGambles') || {});
+const savedBoss = loadSession('activeWorldBoss');
+const savedInvasion = loadSession('activeDemonInvasion');
+if (savedBoss) activeWorldBoss = savedBoss;
+if (savedInvasion) activeDemonInvasion = savedInvasion;
+
+// ============================================================
+// EXPORTS
+// ============================================================
 module.exports = {
-    loadPlayerData, savePlayerData, getPlayer, updatePlayer, getDisplayName,
+    getPlayer, updatePlayer, getDisplayName,
     normalizePlayerCurrency,
     loadBannedUsers, saveBannedUsers, isBanned, banUser, unbanUser,
     loadAdmins, saveAdmins, isBotAdmin, isOwner, isPrivileged,
     normalizeJid, jidKey, sameJid,
-    loadGuildData, saveGuildData, getGuild, saveGuild, deleteGuild, findPlayerGuild,
+    getGuild, saveGuild, deleteGuild, findPlayerGuild,
     loadMarketData, saveMarketData,
     loadBountyData, saveBountyData,
     loadCustomItems, saveCustomItems,
     checkCooldown, formatCooldown,
-    playerCooldowns, activeDuels, activeRaids, activeGambles, activeWorldBoss, activeDemonInvasion
+    playerCooldowns, activeDuels, activeRaids, activeGambles, activeWorldBoss, activeDemonInvasion,
+    saveSession, loadSession,
+    loadPlayerData, savePlayerData
 };
 
 // Initialize on load

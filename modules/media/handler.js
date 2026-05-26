@@ -9,10 +9,12 @@ const ffmpeg = require('fluent-ffmpeg');
 const sharp = require('sharp');
 const axios = require('axios');
 const yts = require('yt-search');
-const { downloadAudio } = require('./audio');
+let downloadAudio = null;
+try { downloadAudio = require('./audio').downloadAudio; } catch(e) { console.log('[WARN] audio.js not found, .play will not work'); }
 const { scrapePinterest, downloadImage, sendImageSearchResults } = require('./scraper');
 const { BOT_CONFIG } = require('../../config');
 const { delay } = require('@whiskeysockets/baileys');
+const { checkCooldown, formatCooldown, isOwner } = require('../utility/db');
 
 async function handleSticker(sock, sender, msg, participant, textMessage) {
     const iI = !!msg.message.imageMessage, iV = !!msg.message.videoMessage;
@@ -159,6 +161,7 @@ async function handleQc(sock, sender, msg, participant, textMessage) {
 
 async function handlePlay(sock, sender, msg, participant, textMessage) {
     if (!textMessage) { await sock.sendMessage(sender, { text: '📌 Masukkan judul lagu!\nContoh: *.play akad payung teduh*' }, { quoted: msg }); return; }
+    if (!downloadAudio) { await sock.sendMessage(sender, { text: '❌ Fitur play lagi maintenance nih, lapor bokap gue ya 🐣' }, { quoted: msg }); return; }
     await sock.sendMessage(sender, { text: '🔍 Sedang mencari lagu...' }, { quoted: msg });
     let of = null;
     try {
@@ -172,12 +175,22 @@ async function handlePlay(sock, sender, msg, participant, textMessage) {
 
 async function handlePin(sock, sender, msg, participant, textMessage) {
     if (!textMessage) { await sock.sendMessage(sender, { text: '📌 Masukkan keyword!\nContoh: *.pin anime naruto*' }, { quoted: msg }); return; }
+    // Cooldown check (skip for owner)
+    if (!isOwner(sender)) {
+        const rem = checkCooldown(sender, 'pin');
+        if (rem > 0) { await sock.sendMessage(sender, { text: `⏳ Tunggu *${formatCooldown(rem)}* sebelum menggunakan fitur pin lagi.` }, { quoted: msg }); return; }
+    }
     await sock.sendMessage(sender, { text: '🔍 Mencari gambar...' }, { quoted: msg });
     try { const imgs = await scrapePinterest(textMessage, 8); if (!imgs.length) { await sock.sendMessage(sender, { text: '❌ Gambar tidak ditemukan.' }, { quoted: msg }); return; } const s = await sendImageSearchResults(sock, sender, msg, imgs, textMessage, 1); if (!s) await sock.sendMessage(sender, { text: '❌ Semua URL gagal didownload.' }, { quoted: msg }); } catch (e) { await sock.sendMessage(sender, { text: '❌ Gagal.' }, { quoted: msg }); }
 }
 
 async function handlePin4(sock, sender, msg, participant, textMessage) {
     if (!textMessage) { await sock.sendMessage(sender, { text: '📌 Masukkan keyword!\nContoh: *.pin4 anime one piece*' }, { quoted: msg }); return; }
+    // Cooldown check (skip for owner)
+    if (!isOwner(sender)) {
+        const rem = checkCooldown(sender, 'pin');
+        if (rem > 0) { await sock.sendMessage(sender, { text: `⏳ Tunggu *${formatCooldown(rem)}* sebelum menggunakan fitur pin lagi.` }, { quoted: msg }); return; }
+    }
     await sock.sendMessage(sender, { text: '🔍 Mencari 4 gambar...' }, { quoted: msg });
     try { const imgs = await scrapePinterest(textMessage, 16); if (!imgs.length) { await sock.sendMessage(sender, { text: '❌ Gambar tidak ditemukan.' }, { quoted: msg }); return; } const s = await sendImageSearchResults(sock, sender, msg, imgs, textMessage, 4); if (!s) await sock.sendMessage(sender, { text: '❌ Semua URL gagal.' }, { quoted: msg }); } catch (e) { await sock.sendMessage(sender, { text: '❌ Gagal.' }, { quoted: msg }); }
 }
