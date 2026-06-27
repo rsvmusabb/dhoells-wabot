@@ -16,7 +16,7 @@ const {
 } = require('../../config');
 
 const { getPlayer, updatePlayer, getDisplayName, checkCooldown, playerCooldowns, activeDuels, activeRaids, activeWorldBoss, activeDemonInvasion } = require('../utility/db');
-const { formatCoins, addCoins } = require('../utility/currency');
+const { formatCoins } = require('../utility/currency');
 
 // ============================================================
 // TIME & WEATHER

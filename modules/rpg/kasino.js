@@ -5,7 +5,7 @@
 
 const { getPlayer, updatePlayer, getDisplayName, activeGambles } = require('../utility/db');
 const { formatCoins } = require('../utility/currency');
-const { FRAME } = require('../../config');
+
 const { delay } = require('@whiskeysockets/baileys');
 
 // ============================================================

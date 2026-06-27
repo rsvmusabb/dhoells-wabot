@@ -3,8 +3,8 @@
 // ============================================================
 
 const { getPlayer, updatePlayer, getDisplayName, activeDuels, activeRaids, findPlayerGuild, getGuild, saveGuild, deleteGuild, loadBountyData, saveBountyData, loadMarketData, saveMarketData } = require('../utility/db');
-const { formatCoins, addCoins } = require('../utility/currency');
-const { DUEL_BET, DUEL_TIMEOUT, GUILD_CREATE_COST, GUILD_BUFF_COST, GUILD_BUFF_DURATION, MARKET_FEE, RPG_CLASSES, FRAME } = require('../../config');
+const { formatCoins } = require('../utility/currency');
+const { DUEL_BET, DUEL_TIMEOUT, GUILD_CREATE_COST, GUILD_BUFF_COST, GUILD_BUFF_DURATION, MARKET_FEE, RPG_CLASSES } = require('../../config');
 const { getBuffedStats, quickBattle, runBattle, getRaidBoss, RPG_RAIDS, checkLevelUp, trackQuest, checkAchievements, tickBuffs, generateBattleImage } = require('./core');
 const { delay } = require('@whiskeysockets/baileys');
 
