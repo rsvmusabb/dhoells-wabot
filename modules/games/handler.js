@@ -3,7 +3,7 @@
 // Gacha, RPS, Daily, Coins, Koleksi, Top, Setnama
 // ============================================================
 
-const { formatCoins, addCoins } = require('../utility/currency');
+const { formatCoins } = require('../utility/currency');
 const { getPlayer, updatePlayer, getDisplayName, loadPlayerData } = require('../utility/db');
 const { GACHA_POOL, rollGacha, buildCollectionCaption, getGachaMenuText } = require('./gacha');
 const { RPS_CHOICES, RPS_EMOJI, playRPS, RPS_REWARD_WIN, RPS_REWARD_LOSE } = require('./rps');

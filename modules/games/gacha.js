@@ -4,7 +4,7 @@
 
 const { GACHA_PRICES } = require('../../config');
 const { getPlayer, updatePlayer } = require('../utility/db');
-const { formatCoins, addCoins, spendCoins } = require('../utility/currency');
+const { formatCoins } = require('../utility/currency');
 
 // Gacha pool definition
 const GACHA_POOL = {

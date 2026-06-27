@@ -49,7 +49,7 @@ const { MENU_CATEGORIES } = require('./modules/utility/menu-categories');
 const { loadPlayerData, savePlayerData, getPlayer, updatePlayer, getDisplayName, normalizePlayerCurrency, loadBannedUsers, isBanned, banUser, unbanUser, loadAdmins, isBotAdmin, isOwner, isPrivileged, normalizeJid, jidKey, sameJid, loadGuildData, saveGuildData, getGuild, saveGuild, deleteGuild, findPlayerGuild, loadMarketData, saveMarketData, loadBountyData, saveBountyData, checkCooldown, formatCooldown, playerCooldowns, activeDuels, activeRaids, activeGambles, activeWorldBoss, activeDemonInvasion } = require('./modules/utility/db');
 
 // Currency
-const { formatCoins, parseCoins, getCoins, addCoins, spendCoins, getSellPrice } = require('./modules/utility/currency');
+const { formatCoins, getSellPrice } = require('./modules/utility/currency');
 
 // Menu & Help
 const { handleMenu, handleHelp, handleGuide } = require('./modules/utility/menu');
@@ -63,7 +63,7 @@ const { handleShop, handleBuy, handleSell, handleSellchar, handleInv, handleEqui
 const { handleRole, handleProfile, handleAchievement, handleQuest, handleEvolve, handleSkillTree, handleBase, handleTitle, handleSkill } = require('./modules/rpg/progression');
 const { handleDungeon, handleDungeonInfo, handleWorldBoss, handleWbAttack, handleDarkWorld, handleRespawn, handleInvasion, handleInvAttack, handleStory, handleSummon, handleAwaken, handleEnchant, handlePet, handleParty } = require('./modules/rpg/dungeon');
 const { handleDuel, handleTerima, handleRaid, handleArena, handleGuild, handleBounty, handleWanted, handleMarket } = require('./modules/rpg/social');
-const { handleEat, handleRest, handleCamp, handleRepair, handleWeatherCmd, handleKarma, handleStatus } = require('./modules/rpg/survival');
+const { handleEat, handleRest, handleCamp, handleRepair, handleKarma, handleStatus } = require('./modules/rpg/survival');
 
 // Media
 const { handleSticker, handleStickerText, handleGif, handleQc, handlePlay, handlePin, handlePin4, handleTiktok, handleCuaca } = require('./modules/media/handler');
@@ -83,7 +83,7 @@ const { handleMatkul } = require('./modules/education/matkul');
 const { handleSlot, handleCoinflip, handleDice, handleTebak, handleKasino, handleJudiDuel, handleJudiWar, handleJudiSlot, handleJudiTerima } = require('./modules/rpg/kasino');
 
 // RPG Core (for initRPG, getBuffedStats, etc)
-const { initRPG, getBuffedStats, getExpToLevel, checkLevelUp, checkAchievements, trackQuest, tickBuffs, getPetStats, getMonsterForLevel, getDungeonMonster, getRaidBoss, RPG_RAIDS, getArenaRank, getKarmaLevel, updateWeather, getTimeLabel, getTimeMultipliers, cleanOutgoingMessage, installOutgoingTextCleaner, chunkArray, generateBattleImage, renderCollectionPage, escapeSvgText } = require('./modules/rpg/core');
+const { initRPG, getBuffedStats, getExpToLevel, checkLevelUp, checkAchievements, trackQuest, tickBuffs, getPetStats, getMonsterForLevel, getDungeonMonster, getRaidBoss, RPG_RAIDS, getArenaRank, getKarmaLevel, updateWeather, getTimeLabel, getTimeMultipliers, cleanOutgoingMessage, installOutgoingTextCleaner, chunkArray, generateBattleImage, renderCollectionPage } = require('./modules/rpg/core');
 
 // Image scraper
 const { scrapePinterest, downloadImage, sendImageSearchResults } = require('./modules/media/scraper');

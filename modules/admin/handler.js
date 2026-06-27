@@ -4,7 +4,7 @@
 // ============================================================
 
 const { getPlayer, updatePlayer, getDisplayName, isOwner, isPrivileged, loadAdmins, saveAdmins, loadPlayerData, loadBannedUsers, banUser, unbanUser, normalizeJid, jidKey, sameJid } = require('../utility/db');
-const { formatCoins, addCoins } = require('../utility/currency');
+const { formatCoins } = require('../utility/currency');
 const { BOT_CONFIG, DELAY_PER_MESSAGE, RPG_ITEMS, RPG_WEAPONS, RPG_ARMORS, RPG_SHIELDS, RPG_CLASSES } = require('../../config');
 const { checkLevelUp, initRPG } = require('../rpg/core');
 const { delay } = require('@whiskeysockets/baileys');
