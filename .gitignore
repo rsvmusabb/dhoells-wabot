@@ -1,0 +1,18 @@
+node_modules/
+auth_info_baileys/
+.env
+*.bak
+*.bak2
+*.backup
+temp_audio/
+player_data.json
+guild_data.json
+marketplace.json
+bounty_data.json
+banned_users.json
+admin_users.json
+
+# Education content — not for public repo
+jadwal/
+Modul Fisika/
+MATKUL/
