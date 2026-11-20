@@ -127,6 +127,9 @@ const { formatCoins, parseCoins, getCoins, addCoins, spendCoins, getSellPrice } 
 // Menu & Help
 const { handleMenu, handleHelp, handleGuide } = require('./modules/utility/menu');
 
+// Anti-link protection (pure helpers, unit tested in test/antilink.test.js)
+const { containsLink } = require('./modules/utility/antilink');
+
 // Games
 const { handleGacha, handleRps, handleDaily, handleCoins, handleKoleksi, handleTop, handleSetnama } = require('./modules/games/handler');
 
@@ -315,6 +318,29 @@ Ketik *.menu* untuk melihat daftar perintah.`;
             if (messageContent.startsWith('.')) console.log(`[SELF COMMAND IGNORED] ${messageContent} dari ${sourceLabel}. Tes dari nomor lain atau grup.`);
             return;
         }
+        // ============================================================
+        // SECURITY: Anti-link spam (group only, skip owner/admin)
+        // ============================================================
+        // Runs BEFORE the non-command early return below, otherwise
+        // plain link messages never reach this check. Commands are
+        // never deleted here, they keep flowing to the router.
+        // groupMetadata is only called when a link is actually present,
+        // so ordinary chat pays no extra cost.
+        if (sender.endsWith('@g.us') && !messageContent.startsWith('.') && containsLink(messageContent) && !isOwner(participant) && !isBotAdmin(participant)) {
+            try {
+                const groupMetadata = await sock.groupMetadata(sender);
+                const groupAdmins = groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin').map(p => p.id);
+                if (!groupAdmins.includes(participant)) {
+                    // Non-admin posting link: delete + warn
+                    await sock.sendMessage(sender, { delete: msg.key });
+                    await sock.sendMessage(sender, { text: `âš ï¸ @${participant.split('@')[0]} dilarang share link tanpa izin admin!`, mentions: [participant] });
+                    return;
+                }
+            } catch (e) {
+                // Silently fail if can't get group info
+            }
+        }
+
         if (!messageContent.startsWith('.')) {
             if (BOT_CONFIG.DEBUG_INCOMING_MESSAGES) console.log(`[MSG DEBUG] Non-command ${getMessageType(msg.message)} dari ${sourceLabel}`);
             return;
@@ -326,35 +352,6 @@ Ketik *.menu* untuk melihat daftar perintah.`;
         console.log(`[CMD] ${command}${textMessage ? ' ' + textMessage : ''} dari ${sourceLabel}`);
 
         if (isBanned(participant) && !isOwner(participant)) return;
-
-        // ============================================================
-        // SECURITY: Auto-welcome for group join events
-        // ============================================================
-        if (sender.endsWith('@g.us') && !command && messageContent) {
-            // Welcome message disabled for non-command messages to reduce spam
-        }
-
-        // ============================================================
-        // SECURITY: Anti-link spam (group only, skip owner/admin)
-        // ============================================================
-        if (sender.endsWith('@g.us') && !isOwner(participant) && !isBotAdmin(participant)) {
-            const linkPattern = /(https?:\/\/|www\.)\S+/gi;
-            if (linkPattern.test(messageContent) && !command) {
-                // Check if sender is bot admin (trusted)
-                try {
-                    const groupMetadata = await sock.groupMetadata(sender);
-                    const groupAdmins = groupMetadata.participants.filter(p => p.admin === 'admin' || p.admin === 'superadmin').map(p => p.id);
-                    if (!groupAdmins.includes(participant)) {
-                        // Non-admin posting link â†’ delete + warn
-                        await sock.sendMessage(sender, { delete: msg.key });
-                        await sock.sendMessage(sender, { text: `âš ï¸ @${participant.split('@')[0]} dilarang share link tanpa izin admin!`, mentions: [participant] });
-                        return;
-                    }
-                } catch (e) {
-                    // Silently fail if can't get group info
-                }
-            }
-        }
 
         try {
             // Humanizer: Indikator sedang mengetik (anti-bot heuristic)
